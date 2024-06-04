@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract PrepaidCard {
+    address public owner;
+    mapping(address => uint256) private cardBalances;
+    mapping(address => uint256) private borrowedAmounts;
+ 
+    uint256 public maxBorrowAmount = 500 wei;  // Set maximum borrow amount to 500 wei
+
+    event FundsLoaded(address indexed user, uint256 amount);
+    event PaymentMade(address indexed user, uint256 amount);
+    event BalanceTransferred(address indexed from, address indexed to, uint256 amount);
+    event Borrowed(address indexed user, uint256 amount);
+    event Repaid(address indexed user, uint256 amount);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Caller is not the owner");
+        _;
+    }
+
+    modifier hasSufficientBalance(address _user, uint256 _amount) {
+        require(cardBalances[_user] >= _amount, "Insufficient balance");
+        _;
+    }
+
+    modifier withinBorrowLimit(uint256 _amount) {
+        require(_amount > 0 && _amount <= maxBorrowAmount, "Borrow amount out of bounds");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    function loadFunds(address _user, uint256 _amount) external onlyOwner {
+        require(_amount > 0, "Amount must be greater than 0");
+        
+        cardBalances[_user] += _amount;
+        emit FundsLoaded(_user, _amount);
+    }
+
+    function checkBalance() external view returns (uint256) {
+        return cardBalances[msg.sender];
+    }
+
+    function makePayment(uint256 _amount) external hasSufficientBalance(msg.sender, _amount) {
+        require(_amount > 0, "Amount must be greater than 0");
+
+        cardBalances[msg.sender] -= _amount;
+        emit PaymentMade(msg.sender, _amount);
+    }
+
+
+    function transferBalance(address _to, uint256 _amount) external hasSufficientBalance(msg.sender, _amount) {
+        require(_to != address(0), "Cannot transfer to zero address");
+        require(_amount > 0, "Amount must be greater than 0");
+
+        cardBalances[msg.sender] -= _amount;
+        cardBalances[_to] += _amount;
+        emit BalanceTransferred(msg.sender, _to, _amount);
+    }
+
+    function borrow(uint256 _amount) external withinBorrowLimit(_amount) {
+        require(borrowedAmounts[msg.sender] == 0, "Outstanding borrow balance exists");
+
+        borrowedAmounts[msg.sender] = _amount;
+        cardBalances[msg.sender] += _amount;
+        emit Borrowed(msg.sender, _amount);
+    }
+
+    function repay(uint256 _amount) external hasSufficientBalance(msg.sender, _amount) {
+        require(borrowedAmounts[msg.sender] > 0, "No borrowed amount to repay");
+        require(_amount <= borrowedAmounts[msg.sender], "Repay amount exceeds borrowed amount");
+
+        cardBalances[msg.sender] -= _amount;
+        borrowedAmounts[msg.sender] -= _amount;
+
+        emit Repaid(msg.sender, _amount);
+    }
+
+    function getBalance(address _user) external view onlyOwner returns (uint256) {
+        return cardBalances[_user];
+    }
+
+    receive() external payable {
+        revert("Prepaid card contract does not accept direct payments");
+    }
+}
