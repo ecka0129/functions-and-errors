@@ -122,6 +122,6 @@ contract PrepaidCardWithErrorHandling {
     }
 
     function assertInvariants() internal view {
-        assert(cardBalances[owner] >= 0); // Example invariant, adjust as necessary
+        assert(cardBalances[owner] >= 0); 
     }
 }
